@@ -20,6 +20,7 @@ class Blockchain:
         self.create_block(proof = 1, previous_hash = '0')
 
 # creating a function to create the block in which our data is stored and adding it to our chain
+# this function will be used by miner to append the block to chain
     def create_block(self, proof, previous_hash):
         block = {'index': len(self.chain)+1,
                   'timeStamp': str(datetime.datetime.now()),
@@ -30,12 +31,14 @@ class Blockchain:
         self.chain.append(block)
         return block
 
+    # function to return the last block in the chain
     def get_previous_block(self):
         return self.chain[-1]
 
 # generating a proof value which help to create hash value for every block
     def proof_of_work(self, previous_proof):
         new_proof = 1
+        # an infinite loop to find out the nonce value
         while True:
             hash_operation = hashlib.sha256(str(new_proof**2 - previous_proof**2).encode()).hexdigest()
             if hash_operation[:5] == '00000':
@@ -55,13 +58,14 @@ class Blockchain:
         block_index = 1
         while block_index < len(chain):
             block = chain[block_index]
-
             previous_proof = previous_block['proof']
             current_proof = block['proof']
             hash_operation = hashlib.sha256(str(current_proof**2 - previous_proof**2).encode()).hexdigest()
+            # check if nonce is correct or not
             if hash_operation[:5] != '00000':
                 return False
 
+            # check if the previous hash is correctly stored or not
             if block['previous_hash'] != self.hash(previous_block):
                 return False
 
@@ -78,6 +82,8 @@ class Blockchain:
         return previous_block['index']+1
 
 # function to add multiple nodes and connect them
+# this is required so that if someone else makes a request saying he has mined the block before us
+# then we can take care of that too
     def add_nodes(self, address):
         parsed_url = urlparse(address)
         self.nodes.add(parsed_url.netloc)
@@ -108,7 +114,7 @@ app = Flask(__name__)
 blockchain = Blockchain()
 
 
-
+# route used by miner to mine the block and append in blockchain
 @app.route('/mine_block', methods = ['GET'])
 def mine_block():
     previous_block = blockchain.get_previous_block()
@@ -126,12 +132,14 @@ def mine_block():
                 }
     return jsonify(response), 200
 
+# route to get the full chain
 @app.route('/get_chain', methods = ['GET'])
 def get_chain():
     response = {'chain': blockchain.chain,
                 'length': len(blockchain.chain)}
     return jsonify(response), 201
 
+# route to check if the chain is valid or not
 @app.route('/chain_validity', methods = ['GET'])
 def chain_validity():
     is_valid = blockchain.chain_validity(blockchain.chain)
@@ -143,7 +151,7 @@ def chain_validity():
         return jsonify(response),400
 
 
-
+# By making a post request and adding data to the body as json object one can add transaction
 @app.route('/add_transaction', methods = ['POST'])
 def add_transaction():
     json = request.get_json()
@@ -154,6 +162,7 @@ def add_transaction():
     response = {'message': f'congratulations!..  Your transaction added to chain successfully.  {index}'}
     return jsonify(response), 200
 
+# connecting all the nodes provided in the list of nodes in body of request
 @app.route('/connect_nodes', methods = ['POST'])
 def connect_nodes():
     json = request.get_json()
@@ -167,6 +176,8 @@ def connect_nodes():
                 'Your nodes are': list(blockchain.nodes)}
     return jsonify(response),200
 
+# check if one's own chain is largest or not
+# if not then replace his chain with longest chain
 @app.route('/replace_chain', methods = ['GET'])
 def replace_chain():
     is_chain_replaced = blockchain.replace_chain()
@@ -179,4 +190,6 @@ def replace_chain():
                     'Chain': blockchain.chain}
         return jsonify(response), 201
 
+# launching the app on localhost at port number 5000
+# one may go to http://127.0.0.1:8000/ or http://localhost:8000/
 app.run(host='localhost',port=5000)
